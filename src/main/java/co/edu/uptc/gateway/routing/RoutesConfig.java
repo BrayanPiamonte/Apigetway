@@ -44,6 +44,12 @@ public class RoutesConfig {
                                 .modifyResponseBody(String.class, String.class,
                                         (exchange, body) -> specs.adapt(body, "Módulo Materias (vía Gateway)")))
                         .uri(s.materias()))
+                .route("docs-inscripciones", r -> r
+                        .path("/docs/inscripciones.json")
+                        .filters(f -> f.setPath("/v3/api-docs")
+                                .modifyResponseBody(String.class, String.class,
+                                        (exchange, body) -> specs.adapt(body, "Módulo Inscripciones (vía Gateway)")))
+                        .uri(s.inscripciones()))
                 .build();
     }
 

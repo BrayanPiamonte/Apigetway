@@ -45,3 +45,5 @@ springdoc:
         url: /docs/estudiantes.json
       - name: Módulo Materias (vía Gateway)
         url: /docs/materias.json
+      - name: Módulo Inscripciones (vía Gateway)
+        url: /docs/inscripciones.json

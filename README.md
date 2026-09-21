@@ -10,11 +10,11 @@ Java 17 · Spring Boot 3.3.4 · Spring Cloud Gateway (2023.0.3) · Spring Securi
 |---|---|---|
 | Estudiantes | 3001 | `docker compose up -d` · `npm run migrate` · `npm run dev` |
 | Materias | 8081 | `docker compose up -d` · `mvn spring-boot:run` |
-| Inscripciones | 8082 (configurable) | según su repositorio |
+| Inscripciones | 8082 | `docker compose up -d` · `mvn spring-boot:run` (Java 23, Spring Boot 4) |
 | **Gateway** | **8080** | ver abajo |
 
-> Las bases de datos de Estudiantes y Materias publican por defecto el mismo puerto **5433**. Cambia uno
-> (p. ej. `DB_PORT=5434` en el `.env` de Estudiantes) antes de levantar ambas.
+> Las bases de datos publican en el host: Estudiantes **5433** (por defecto), Materias **5433** e Inscripciones **5434**.
+> Estudiantes y Materias chocan: cambia uno (p. ej. `DB_PORT=5435` en el `.env` de Estudiantes; **no** uses 5434, es de Inscripciones).
 
 ## Ejecutar el Gateway
 
@@ -24,7 +24,7 @@ Requiere JDK 17+ y Maven 3.9+. Los secretos **no tienen valor por defecto**: si 
 ```bash
 cp src/main/resources/application-local.yml.example src/main/resources/application-local.yml
 # edita gateway.jwt.secret (>= 32 caracteres) y gateway.admin.password
-mvn spring-boot:run "-Dspring-boot.run.profiles=local"
+mvn spring-boot:run -Dspring-boot.run.profiles=local
 ```
 > En **PowerShell** el `-D...` con punto se rompe si no va entre comillas. Usa:
 > `mvn spring-boot:run "-Dspring-boot.run.profiles=local"`
@@ -81,7 +81,7 @@ curl -H "Authorization: Bearer $TOKEN" "localhost:8080/api/estudiantes?pageNumbe
 ## Swagger del Gateway
 
 `http://localhost:8080/swagger-ui.html` — contrato propio (auth + reglas de seguridad) y, en el selector
-*Select a definition*, los contratos de Estudiantes y Materias reescritos para ejecutarse **a través del Gateway**.
+*Select a definition*, los contratos de Estudiantes, Materias e Inscripciones reescritos para ejecutarse **a través del Gateway**.
 Pulsa **Authorize** una sola vez con el token del login (sin la palabra Bearer).
 
 ## Estructura

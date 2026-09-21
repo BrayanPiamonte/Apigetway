@@ -139,6 +139,44 @@ class GatewaySecurityTest {
     }
 
     @Test
+    void inscripcionesRequiresTokenAndRespectsRoles() {
+        // sin token -> 401, también en las rutas anidadas (notas e historial)
+        client.get().uri("/api/inscripciones").exchange().expectStatus().isUnauthorized();
+        client.get().uri("/api/inscripciones/1/notas").exchange().expectStatus().isUnauthorized();
+        client.get().uri("/api/inscripciones/1/historial").exchange().expectStatus().isUnauthorized();
+
+        // USER puede consultar: pasa la seguridad y llega al módulo (caído) -> 503 controlado
+        client.get().uri("/api/inscripciones?pageNumber=0&pageSize=20&estado=ACTIVA")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken)
+                .exchange().expectStatus().isEqualTo(503);
+        client.get().uri("/api/inscripciones/1/notas")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken)
+                .exchange().expectStatus().isEqualTo(503);
+
+        // USER no puede escribir: POST, PUT, PATCH (cambio de estado) ni DELETE -> 403
+        client.post().uri("/api/inscripciones")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("estudianteId", 1, "cursoId", 1))
+                .exchange().expectStatus().isForbidden();
+        client.patch().uri("/api/inscripciones/1/estado")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("estado", "CANCELADA"))
+                .exchange().expectStatus().isForbidden();
+        client.delete().uri("/api/inscripciones/1/historial/1")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken)
+                .exchange().expectStatus().isForbidden();
+
+        // ADMIN sí pasa la seguridad (503 porque el módulo está caído)
+        client.patch().uri("/api/inscripciones/1/estado")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("estado", "CANCELADA"))
+                .exchange().expectStatus().isEqualTo(503);
+    }
+
+    @Test
     void unknownApiRouteIs404ForAuthenticatedUser() {
         client.get().uri("/api/otra-cosa")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken)
