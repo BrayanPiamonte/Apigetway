@@ -1,0 +1,47 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      httpclient:
+        connect-timeout: 2000            # ms para conectar con un módulo
+        response-timeout: ${PROXY_TIMEOUT:10s}   # tiempo máximo de respuesta del módulo (504 si se excede)
+
+# ---------------------------------------------------------------------------
+# Configuración propia del Gateway. Los secretos NO tienen valor por defecto:
+# defínelos como variables de entorno o en application-local.yml (ver README).
+# ---------------------------------------------------------------------------
+gateway:
+  jwt:
+    secret: ${JWT_SECRET:}               # obligatorio, mínimo 32 caracteres
+    expires-in: ${JWT_EXPIRES_IN:1h}
+    issuer: ${JWT_ISSUER:api-gateway-uptc}
+    audience: ${JWT_AUDIENCE:sistema-academico}
+  admin:
+    username: ${ADMIN_USERNAME:admin}
+    password: ${ADMIN_PASSWORD:}         # obligatoria, mínimo 8 caracteres
+  users-file: ${USERS_FILE:./data/users.json}
+  cors-origins: ${CORS_ORIGIN:*}
+  rate-limit-per-minute: ${RATE_LIMIT_MAX:10}
+  services:
+    estudiantes: ${ESTUDIANTES_URL:http://localhost:3001}
+    materias: ${MATERIAS_URL:http://localhost:8081}
+    inscripciones: ${INSCRIPCIONES_URL:http://localhost:8082}
+
+# Swagger UI del Gateway: su propio contrato + el de cada módulo (vía Gateway)
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    persist-authorization: true
+    display-request-duration: true
+    urls-primary-name: API Gateway
+    urls:
+      - name: API Gateway
+        url: /v3/api-docs
+      - name: Módulo Estudiantes (vía Gateway)
+        url: /docs/estudiantes.json
+      - name: Módulo Materias (vía Gateway)
+        url: /docs/materias.json

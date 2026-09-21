@@ -1,0 +1,7 @@
+target/
+data/
+.env
+src/main/resources/application-local.yml
+.idea/
+.vscode/
+*.iml
