@@ -13,8 +13,7 @@ Java 17 · Spring Boot 3.3.4 · Spring Cloud Gateway (2023.0.3) · Spring Securi
 | Inscripciones | 8082 | `docker compose up -d` · `mvn spring-boot:run` (Java 23, Spring Boot 4) |
 | **Gateway** | **8080** | ver abajo |
 
-> Las bases de datos publican en el host: Estudiantes **5433** (por defecto), Materias **5433** e Inscripciones **5434**.
-> Estudiantes y Materias chocan: cambia uno (p. ej. `DB_PORT=5435` en el `.env` de Estudiantes; **no** uses 5434, es de Inscripciones).
+> Las bases de datos publican en el host: Estudiantes **5433** (por defecto), Materias **5432** e Inscripciones **5434**.
 
 ## Ejecutar el Gateway
 
@@ -43,7 +42,8 @@ JWT_SECRET="..." ADMIN_PASSWORD="..." mvn spring-boot:run
 Swagger: <http://localhost:8080/swagger-ui.html> · Pruebas: `mvn test`
 
 Variables opcionales: `JWT_EXPIRES_IN` (1h), `ADMIN_USERNAME` (admin), `PROXY_TIMEOUT` (10s), `RATE_LIMIT_MAX` (10/min),
-`CORS_ORIGIN` (*), `ESTUDIANTES_URL`, `MATERIAS_URL`, `INSCRIPCIONES_URL`, `USERS_FILE` (./data/users.json).
+`CORS_ORIGIN` (*), `ESTUDIANTES_URL`, `MATERIAS_URL`, `INSCRIPCIONES_URL`, `USERS_FILE` (./data/users.json),
+`COMPOSITION_TIMEOUT` (5s, timeout de las llamadas de `/detalle` a los tres módulos).
 
 ## Enrutamiento
 
@@ -54,6 +54,37 @@ Variables opcionales: `JWT_EXPIRES_IN` (1h), `ADMIN_USERNAME` (admin), `PROXY_TI
 | `/api/inscripciones/**` | Inscripciones |
 
 Si un módulo no responde: `503` (caído) o `504` (timeout); el Gateway sigue atendiendo a los demás.
+
+## Endpoint de composición (BFF) — sección 6.1
+
+`GET /api/estudiantes/{id}/detalle` sí es lógica propia del Gateway (a diferencia del enrutamiento
+simple, que es solo un proxy). Requiere token, igual que el resto de `/api/**`. Orquesta, en este orden:
+
+1. `GET Estudiante/{id}` al módulo Estudiantes.
+2. `GET Inscripciones?estudianteId={id}` al módulo Inscripciones — recorre **todas** las páginas
+   (el módulo solo admite `pageSize` 10/20/50; el Gateway usa 50 y pide las páginas que falten).
+3. Por cada inscripción, `GET Curso/{cursoId}` al módulo Materias.
+4. Por cada curso, `GET Docente/{docenteId}` al módulo Materias.
+5. El Gateway ensambla todo en un solo JSON.
+
+`curso` y `docente` repetidos entre inscripciones (mismo curso, mismo docente) se piden **una sola vez**.
+
+**Decisiones de diseño, por si preguntan en la sustentación:**
+- **Sin respuestas parciales.** Si cualquier módulo falla en cualquier paso, toda la operación falla
+  con un error controlado (`404` si el estudiante no existe, `502` si un módulo respondió un error,
+  `503`/`504` si está caído o lento) — nunca un JSON a medias. Es más fácil de explicar y de depurar
+  que decidir, campo por campo, qué mostrar cuando falta un dato.
+- **`estado` viaja tal cual lo da Inscripciones** (`"ACTIVA"`, en mayúsculas — el enum real del
+  módulo), no como el `"activa"` en minúsculas del ejemplo ilustrativo del enunciado.
+- **El paso 4 se hace igual, aunque ya sobra un dato.** `GET Curso/{cursoId}` ya trae `docenteNombre`,
+  pero el enunciado pide una llamada aparte a `Docente/{docenteId}`, así que se hace para seguir el
+  contrato al pie de la letra (y porque valida que el endpoint de Docentes también funcione).
+- **`estudiante` no se toca.** Va tal cual lo devuelve el módulo Estudiantes, como pide el enunciado.
+
+Documentado con Swagger en el tag **Composición (BFF)** (`/swagger-ui.html`), con el contrato completo
+(200/401/404/502/503/504) y ejemplos. Hay una prueba de integración (`CompositionTest`) que simula
+los tres módulos y comprueba el ensamblado, el recorrido de páginas y que curso/docente no se pidan
+dos veces.
 
 ## Seguridad
 
@@ -94,11 +125,12 @@ src/main/java/co/edu/uptc/gateway/
   routing/     RoutesConfig (prefijo -> módulo) · IdentityHeadersFilter
   ratelimit/   AuthRateLimitFilter
   docs/        OpenApiSpecAdapter (contratos de módulos vía Gateway)
+  composition/ CompositionController · EstudianteDetalleService (endpoint /detalle, sección 6.1)
   error/       GatewayErrorHandler (503/504/404 controlados) · ApiExceptionHandler
 ```
 
 ## Pendiente / límites conocidos
 
-- `GET /api/estudiantes/{id}/detalle` (composición, sección 6.1 del enunciado) aún no está implementado.
 - Los módulos siguen accesibles directo en sus puertos; en despliegue deben quedar solo en red interna.
 - Sin refresh tokens ni revocación: el token vive `JWT_EXPIRES_IN`.
+- `/detalle` no cachea nada: cada llamada vuelve a pedir todo a los tres módulos.

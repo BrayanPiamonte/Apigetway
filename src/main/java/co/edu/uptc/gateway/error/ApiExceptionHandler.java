@@ -2,6 +2,8 @@ package co.edu.uptc.gateway.error;
 
 import co.edu.uptc.gateway.auth.InvalidCredentialsException;
 import co.edu.uptc.gateway.auth.UsernameTakenException;
+import co.edu.uptc.gateway.composition.CompositionUpstreamException;
+import co.edu.uptc.gateway.composition.StudentNotFoundException;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
@@ -40,5 +42,17 @@ public class ApiExceptionHandler {
     public ResponseEntity<ApiError> usernameTaken(UsernameTakenException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ApiError.of("USERNAME_TAKEN", "Ese nombre de usuario ya existe"));
+    }
+
+    @ExceptionHandler(StudentNotFoundException.class)
+    public ResponseEntity<ApiError> studentNotFound(StudentNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiError.of("STUDENT_NOT_FOUND", ex.getMessage()));
+    }
+
+    @ExceptionHandler(CompositionUpstreamException.class)
+    public ResponseEntity<ApiError> compositionUpstream(CompositionUpstreamException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                .body(ApiError.of("COMPOSITION_UPSTREAM_ERROR", ex.getMessage()));
     }
 }

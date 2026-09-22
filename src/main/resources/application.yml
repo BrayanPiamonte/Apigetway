@@ -26,6 +26,7 @@ gateway:
   users-file: ${USERS_FILE:./data/users.json}
   cors-origins: ${CORS_ORIGIN:*}
   rate-limit-per-minute: ${RATE_LIMIT_MAX:10}
+  composition-timeout: ${COMPOSITION_TIMEOUT:5s}   # llamadas del propio Gateway a los módulos en /detalle
   services:
     estudiantes: ${ESTUDIANTES_URL:http://localhost:3001}
     materias: ${MATERIAS_URL:http://localhost:8081}

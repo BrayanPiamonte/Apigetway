@@ -36,6 +36,11 @@ public class OpenApiConfig {
 
             El Gateway retira la cabecera `Authorization` antes de reenviar y agrega `X-User-Name` y `X-User-Role`.
 
+            ### Endpoint de composición (BFF)
+            `GET /api/estudiantes/{id}/detalle` (sección 6.1) sí es lógica propia del Gateway — junta
+            en un solo JSON al estudiante, sus inscripciones, cada curso y cada docente, pidiéndolos a
+            los tres módulos. Ver el tag **Composición (BFF)** más abajo para el contrato completo.
+
             ### Documentación de los módulos
             El selector **Select a definition** (arriba a la derecha) cambia entre este contrato y el de cada \
             módulo; sus rutas se ejecutan a través del Gateway, con el mismo token.

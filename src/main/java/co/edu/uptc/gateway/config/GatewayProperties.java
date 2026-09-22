@@ -22,7 +22,10 @@ public record GatewayProperties(
         @Valid @DefaultValue Services services,
         @DefaultValue("./data/users.json") String usersFile,
         @DefaultValue("*") List<String> corsOrigins,
-        @Min(1) @DefaultValue("10") int rateLimitPerMinute) {
+        @Min(1) @DefaultValue("10") int rateLimitPerMinute,
+        // Timeout de las llamadas que el propio Gateway hace a los módulos para /detalle (distinto
+        // del timeout del proxy simple, que se configura en spring.cloud.gateway.httpclient).
+        @DefaultValue("5s") Duration compositionTimeout) {
 
     public record Jwt(
             @NotBlank(message = "es obligatorio (variable JWT_SECRET)")
