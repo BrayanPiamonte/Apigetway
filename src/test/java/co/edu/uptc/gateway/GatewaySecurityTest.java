@@ -1,8 +1,7 @@
 package co.edu.uptc.gateway;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-
-import co.edu.uptc.gateway.auth.TokenResponse;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -14,57 +13,34 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
 /**
- * Pruebas de seguridad del Gateway. Los tres módulos apuntan a un puerto cerrado a propósito:
+ * Pruebas de seguridad del Gateway. Los módulos (incluido Autenticación) apuntan a un puerto cerrado a propósito:
  * si la petición SUPERA la seguridad, el resultado esperado es 503 (módulo caído, error controlado);
  * si NO la supera, es 401 (sin/mal token) o 403 (rol sin permiso).
+ * Los tokens se fabrican en el test con la misma clave: el Gateway solo los valida, no los emite.
  */
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
-                "gateway.jwt.secret=0123456789-0123456789-0123456789-0123",
-                "gateway.admin.username=admin",
-                "gateway.admin.password=admin-password-1",
-                "gateway.users-file=target/test-users.json",
+                "gateway.jwt.secret=" + TestTokens.SECRET,
                 "gateway.rate-limit-per-minute=1000",
                 "gateway.services.estudiantes=http://localhost:1",
                 "gateway.services.materias=http://localhost:1",
-                "gateway.services.inscripciones=http://localhost:1"
+                "gateway.services.inscripciones=http://localhost:1",
+                "gateway.services.auth=http://localhost:1"
         })
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class GatewaySecurityTest {
-
-    private static final String USER_PASSWORD = "clave-segura-1";
 
     @Autowired
     private WebTestClient client;
 
     private String adminToken;
     private String userToken;
-    private String username;
 
     @BeforeAll
     void createTokens() {
-        adminToken = login("admin", "admin-password-1");
-        username = "user" + System.nanoTime();
-        client.post().uri("/auth/register")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(Map.of("username", username, "password", USER_PASSWORD))
-                .exchange()
-                .expectStatus().isCreated()
-                .expectBody().jsonPath("$.role").isEqualTo("USER");
-        userToken = login(username, USER_PASSWORD);
-    }
-
-    private String login(String user, String password) {
-        TokenResponse body = client.post().uri("/auth/login")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(Map.of("username", user, "password", password))
-                .exchange()
-                .expectStatus().isOk()
-                .expectBody(TokenResponse.class)
-                .returnResult().getResponseBody();
-        assertNotNull(body);
-        return body.accessToken();
+        adminToken = TestTokens.mint("admin", "ADMIN");
+        userToken = TestTokens.mint("laura", "USER");
     }
 
     @Test
@@ -85,23 +61,79 @@ class GatewaySecurityTest {
     }
 
     @Test
-    void wrongPasswordIs401() {
-        client.post().uri("/auth/login")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(Map.of("username", "admin", "password", "incorrecta"))
+    void tokenSignedWithAnotherKeyIs401() {
+        Instant now = Instant.now();
+        String forged = TestTokens.mint("admin", "ADMIN", "otra-clave-0123456789-0123456789-0123456789",
+                now, now.plus(Duration.ofHours(1)));
+        client.get().uri("/api/materias")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + forged)
                 .exchange()
                 .expectStatus().isUnauthorized()
-                .expectBody().jsonPath("$.error.code").isEqualTo("INVALID_CREDENTIALS");
+                .expectBody().jsonPath("$.error.code").isEqualTo("TOKEN_INVALID");
+    }
+
+    @Test
+    void expiredTokenIs401() {
+        Instant now = Instant.now();
+        String expired = TestTokens.mint("admin", "ADMIN", TestTokens.SECRET,
+                now.minus(Duration.ofHours(2)), now.minus(Duration.ofHours(1)));
+        client.get().uri("/api/materias")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + expired)
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectBody().jsonPath("$.error.code").isEqualTo("TOKEN_EXPIRED");
+    }
+
+    @Test
+    void loginIsPublicAndRoutedToAuthModule() {
+        // Pasa la seguridad (es público) y llega al módulo de Autenticación (caído) -> 503 controlado
+        client.post().uri("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("username", "admin", "password", "x"))
+                .exchange()
+                .expectStatus().isEqualTo(503)
+                .expectBody().jsonPath("$.error.code").isEqualTo("SERVICE_UNAVAILABLE");
     }
 
     @Test
     void staleTokenDoesNotBreakLogin() {
-        client.post().uri("/auth/login")
+        client.post().uri("/api/auth/login")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer token-vencido-o-basura")
                 .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(Map.of("username", "admin", "password", "admin-password-1"))
+                .bodyValue(Map.of("username", "admin", "password", "x"))
                 .exchange()
-                .expectStatus().isOk();
+                .expectStatus().isEqualTo(503); // no 401: en rutas públicas se ignora el Authorization
+    }
+
+    @Test
+    void registerAndMeAreNotPublic() {
+        client.post().uri("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("username", "nuevo", "password", "clave-segura-1"))
+                .exchange().expectStatus().isUnauthorized();
+        client.get().uri("/api/auth/me").exchange().expectStatus().isUnauthorized();
+    }
+
+    @Test
+    void registerIsAdminOnly() {
+        Map<String, String> body = Map.of("username", "nuevo", "password", "clave-segura-1");
+        client.post().uri("/api/auth/register")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(body)
+                .exchange().expectStatus().isForbidden();
+        client.post().uri("/api/auth/register")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(body)
+                .exchange().expectStatus().isEqualTo(503); // pasó la seguridad; Autenticación está caído
+    }
+
+    @Test
+    void meWithValidTokenReachesAuthModule() {
+        client.get().uri("/api/auth/me")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken)
+                .exchange().expectStatus().isEqualTo(503);
     }
 
     @Test
@@ -186,47 +218,17 @@ class GatewaySecurityTest {
     }
 
     @Test
-    void meReturnsIdentityFromToken() {
-        client.get().uri("/auth/me")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken)
-                .exchange()
-                .expectStatus().isOk()
-                .expectBody()
-                .jsonPath("$.username").isEqualTo(username)
-                .jsonPath("$.role").isEqualTo("USER");
-    }
-
-    @Test
-    void registerRejectsDuplicatesAndIgnoresRole() {
-        client.post().uri("/auth/register")
+    void oldGatewayAuthPathsAreGone() {
+        // /auth/login ya no existe en el Gateway: la ruta pública es /api/auth/login
+        client.post().uri("/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(Map.of("username", username.toUpperCase(), "password", USER_PASSWORD))
-                .exchange()
-                .expectStatus().isEqualTo(409);
-
-        client.post().uri("/auth/register")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(Map.of("username", "intruso" + System.nanoTime(), "password", USER_PASSWORD, "role", "ADMIN"))
-                .exchange()
-                .expectStatus().isCreated()
-                .expectBody().jsonPath("$.role").isEqualTo("USER");
-    }
-
-    @Test
-    void registerValidatesBody() {
-        client.post().uri("/auth/register")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(Map.of("username", "a", "password", "123"))
-                .exchange()
-                .expectStatus().isEqualTo(422)
-                .expectBody().jsonPath("$.error.code").isEqualTo("VALIDATION_ERROR");
+                .bodyValue(Map.of("username", "admin", "password", "x"))
+                .exchange().expectStatus().is4xxClientError();
     }
 
     @Test
     void healthAndGatewayOpenApiArePublic() {
         client.get().uri("/health").exchange().expectStatus().isOk();
-        client.get().uri("/v3/api-docs").exchange()
-                .expectStatus().isOk()
-                .expectBody().jsonPath("$.paths['/auth/login']").exists();
+        client.get().uri("/v3/api-docs").exchange().expectStatus().isOk();
     }
 }

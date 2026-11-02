@@ -1,7 +1,5 @@
 package co.edu.uptc.gateway.error;
 
-import co.edu.uptc.gateway.auth.InvalidCredentialsException;
-import co.edu.uptc.gateway.auth.UsernameTakenException;
 import co.edu.uptc.gateway.composition.CompositionUpstreamException;
 import co.edu.uptc.gateway.composition.StudentNotFoundException;
 import java.util.List;
@@ -13,7 +11,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.bind.support.WebExchangeBindException;
 import org.springframework.web.server.ServerWebInputException;
 
-/** Errores de los endpoints propios del Gateway (/auth/**). */
+/** Errores de los endpoints propios del Gateway (hoy, la composición /detalle). */
 @RestControllerAdvice
 public class ApiExceptionHandler {
 
@@ -30,18 +28,6 @@ public class ApiExceptionHandler {
     @ExceptionHandler(ServerWebInputException.class)
     public ResponseEntity<ApiError> badInput(ServerWebInputException ex) {
         return ResponseEntity.badRequest().body(ApiError.of("INVALID_JSON", "JSON mal formado o faltante"));
-    }
-
-    @ExceptionHandler(InvalidCredentialsException.class)
-    public ResponseEntity<ApiError> invalidCredentials(InvalidCredentialsException ex) {
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(ApiError.of("INVALID_CREDENTIALS", "Usuario o contraseña incorrectos"));
-    }
-
-    @ExceptionHandler(UsernameTakenException.class)
-    public ResponseEntity<ApiError> usernameTaken(UsernameTakenException ex) {
-        return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(ApiError.of("USERNAME_TAKEN", "Ese nombre de usuario ya existe"));
     }
 
     @ExceptionHandler(StudentNotFoundException.class)

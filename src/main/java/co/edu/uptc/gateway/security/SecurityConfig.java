@@ -1,7 +1,5 @@
 package co.edu.uptc.gateway.security;
 
-import co.edu.uptc.gateway.auth.Role;
-import co.edu.uptc.gateway.auth.TokenService;
 import co.edu.uptc.gateway.config.GatewayProperties;
 import co.edu.uptc.gateway.error.JsonErrors;
 import org.springframework.context.annotation.Bean;
@@ -33,8 +31,9 @@ import reactor.core.publisher.Mono;
 /**
  * Seguridad centralizada en el Gateway. Los módulos no validan tokens: solo se llega a ellos pasando por aquí.
  * <ul>
- *   <li>Públicos: login, registro, health y documentación.</li>
- *   <li>/api/**: JWT válido. GET/HEAD para ADMIN y USER; cualquier otro método solo ADMIN.</li>
+ *   <li>Públicos: solo el login (que atiende el módulo de Autenticación), health y documentación.</li>
+ *   <li>/api/**: JWT válido. GET/HEAD para ADMIN y USER; cualquier otro método solo ADMIN
+ *       (incluye POST /api/auth/register: crear usuarios es cosa de ADMIN).</li>
  * </ul>
  */
 @Configuration
@@ -42,7 +41,7 @@ import reactor.core.publisher.Mono;
 public class SecurityConfig {
 
     static final String[] PUBLIC_PATHS = {
-            "/auth/login", "/auth/register", "/health",
+            "/api/auth/login", "/health",
             "/swagger-ui.html", "/swagger-ui/**", "/webjars/**", "/v3/api-docs/**", "/docs/**"
     };
 
@@ -79,7 +78,6 @@ public class SecurityConfig {
                 .authorizeExchange(auth -> auth
                         .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .pathMatchers(PUBLIC_PATHS).permitAll()
-                        .pathMatchers("/auth/me").authenticated()
                         .pathMatchers(HttpMethod.GET, "/api/**").hasAnyRole(Role.ADMIN.name(), Role.USER.name())
                         .pathMatchers(HttpMethod.HEAD, "/api/**").hasAnyRole(Role.ADMIN.name(), Role.USER.name())
                         .pathMatchers("/api/**").hasRole(Role.ADMIN.name())
@@ -100,7 +98,7 @@ public class SecurityConfig {
     /** Claim "role": "ADMIN" -> autoridad ROLE_ADMIN. */
     private static JwtAuthenticationConverter rolesConverter() {
         JwtGrantedAuthoritiesConverter authorities = new JwtGrantedAuthoritiesConverter();
-        authorities.setAuthoritiesClaimName(TokenService.ROLE_CLAIM);
+        authorities.setAuthoritiesClaimName(JwtClaims.ROLE_CLAIM);
         authorities.setAuthorityPrefix("ROLE_");
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
         converter.setJwtGrantedAuthoritiesConverter(authorities);

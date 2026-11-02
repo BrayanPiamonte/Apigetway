@@ -20,18 +20,19 @@ public class OpenApiConfig {
             | `/api/estudiantes/**`, `/api/programas/**`, `/api/documentos/**` | Estudiantes |
             | `/api/materias/**` (incluye `/docentes` y `/cursos`) | Materias |
             | `/api/inscripciones/**` | Inscripciones |
+            | `/api/auth/**` | Autenticación (módulo propio, con su base de datos) |
 
             Método, query params y body se reenvían sin alterarse. Si un módulo no responde, el Gateway \
             devuelve `503` (caído) o `504` (tardó demasiado) sin dejar de atender a los demás.
 
             ### Seguridad (JSON Web Token)
-            1. `POST /auth/login` devuelve un `accessToken`.
+            1. `POST /api/auth/login` (lo atiende el módulo de Autenticación) devuelve un `accessToken`.
             2. Pulsa **Authorize** y pega el token (solo el token, sin "Bearer").
             3. Todo `/api/**` exige `Authorization: Bearer <token>`.
 
             | Rol | Permisos en `/api/**` |
             |-----|----------------------|
-            | `ADMIN` | Todos los métodos |
+            | `ADMIN` | Todos los métodos (incluye `POST /api/auth/register`) |
             | `USER` | Solo lectura (`GET`) |
 
             El Gateway retira la cabecera `Authorization` antes de reenviar y agrega `X-User-Name` y `X-User-Role`.

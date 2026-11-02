@@ -17,7 +17,7 @@ import org.springframework.web.server.WebFilter;
 import org.springframework.web.server.WebFilterChain;
 import reactor.core.publisher.Mono;
 
-/** Freno a fuerza bruta: máximo N intentos por minuto y por IP en /auth/login y /auth/register. */
+/** Freno a fuerza bruta: máximo N intentos por minuto y por IP en POST /api/auth/login. */
 @Component
 @Order(-200) // antes de la cadena de Spring Security
 public class AuthRateLimitFilter implements WebFilter {
@@ -45,8 +45,7 @@ public class AuthRateLimitFilter implements WebFilter {
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
         ServerHttpRequest request = exchange.getRequest();
         String path = request.getPath().value();
-        boolean guarded = HttpMethod.POST.equals(request.getMethod())
-                && (path.equals("/auth/login") || path.equals("/auth/register"));
+        boolean guarded = HttpMethod.POST.equals(request.getMethod()) && path.equals("/api/auth/login");
         if (!guarded) {
             return chain.filter(exchange);
         }

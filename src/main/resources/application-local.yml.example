@@ -1,9 +1,9 @@
 # Copia este archivo a "application-local.yml" (está en .gitignore) y arranca con:
 #   mvn spring-boot:run -Dspring-boot.run.profiles=local
 #
+# El Gateway ya NO emite tokens: solo los valida. El secreto debe ser EXACTAMENTE el mismo
+# que JWT_SECRET del módulo de Autenticación (auth-service).
 # Genera un secreto con:  openssl rand -base64 48
 gateway:
   jwt:
     secret: CAMBIA-ESTE-SECRETO-POR-UNO-DE-AL-MENOS-32-CARACTERES
-  admin:
-    password: CAMBIA-ESTA-CLAVE

@@ -16,14 +16,9 @@ spring:
 # ---------------------------------------------------------------------------
 gateway:
   jwt:
-    secret: ${JWT_SECRET:}               # obligatorio, mínimo 32 caracteres
-    expires-in: ${JWT_EXPIRES_IN:1h}
+    secret: ${JWT_SECRET:}               # obligatorio, mínimo 32 caracteres; MISMO valor que el módulo de Autenticación
     issuer: ${JWT_ISSUER:api-gateway-uptc}
     audience: ${JWT_AUDIENCE:sistema-academico}
-  admin:
-    username: ${ADMIN_USERNAME:admin}
-    password: ${ADMIN_PASSWORD:}         # obligatoria, mínimo 8 caracteres
-  users-file: ${USERS_FILE:./data/users.json}
   cors-origins: ${CORS_ORIGIN:*}
   rate-limit-per-minute: ${RATE_LIMIT_MAX:10}
   composition-timeout: ${COMPOSITION_TIMEOUT:5s}   # llamadas del propio Gateway a los módulos en /detalle
@@ -31,6 +26,7 @@ gateway:
     estudiantes: ${ESTUDIANTES_URL:http://localhost:3001}
     materias: ${MATERIAS_URL:http://localhost:8081}
     inscripciones: ${INSCRIPCIONES_URL:http://localhost:8082}
+    auth: ${AUTH_URL:http://localhost:8083}          # módulo de Autenticación (emite los JWT)
 
 # Swagger UI del Gateway: su propio contrato + el de cada módulo (vía Gateway)
 springdoc:
@@ -48,3 +44,5 @@ springdoc:
         url: /docs/materias.json
       - name: Módulo Inscripciones (vía Gateway)
         url: /docs/inscripciones.json
+      - name: Módulo Autenticación (vía Gateway)
+        url: /docs/auth.json

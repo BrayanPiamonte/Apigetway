@@ -30,6 +30,12 @@ public class RoutesConfig {
                         .path("/api/inscripciones/**")
                         .filters(RoutesConfig::dedupeCors)
                         .uri(s.inscripciones()))
+                // Módulo de Autenticación: /api/auth/login es público (ver SecurityConfig); el resto exige token.
+                // El id "auth" lo usa IdentityHeadersFilter para NO retirar el Authorization en esta ruta.
+                .route(IdentityHeadersFilter.AUTH_ROUTE_ID, r -> r
+                        .path("/api/auth/**")
+                        .filters(RoutesConfig::dedupeCors)
+                        .uri(s.auth()))
 
                 // --- Contratos OpenAPI de los módulos, reescritos para ejecutarse a través del Gateway ---
                 .route("docs-estudiantes", r -> r
@@ -44,6 +50,12 @@ public class RoutesConfig {
                                 .modifyResponseBody(String.class, String.class,
                                         (exchange, body) -> specs.adapt(body, "Módulo Materias (vía Gateway)")))
                         .uri(s.materias()))
+                .route("docs-auth", r -> r
+                        .path("/docs/auth.json")
+                        .filters(f -> f.setPath("/v3/api-docs")
+                                .modifyResponseBody(String.class, String.class,
+                                        (exchange, body) -> specs.adapt(body, "Módulo Autenticación (vía Gateway)")))
+                        .uri(s.auth()))
                 .route("docs-inscripciones", r -> r
                         .path("/docs/inscripciones.json")
                         .filters(f -> f.setPath("/v3/api-docs")

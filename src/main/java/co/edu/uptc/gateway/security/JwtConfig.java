@@ -1,43 +1,28 @@
 package co.edu.uptc.gateway.security;
 
 import co.edu.uptc.gateway.config.GatewayProperties;
-import com.nimbusds.jose.jwk.source.ImmutableSecret;
-import com.nimbusds.jose.jwk.source.JWKSource;
-import com.nimbusds.jose.proc.SecurityContext;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtClaimNames;
 import org.springframework.security.oauth2.jwt.JwtClaimValidator;
-import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtValidators;
-import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.jwt.NimbusReactiveJwtDecoder;
 import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
 
-/** Firma (login) y verificación (cada petición a /api/**) de los JWT con la misma clave HS256. */
+/**
+ * Verificación (cada petición a /api/**) de los JWT. El Gateway ya NO emite tokens: los firma el módulo de
+ * Autenticación con la misma clave HS256 (variable JWT_SECRET compartida).
+ */
 @Configuration
 public class JwtConfig {
-
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
-
-    @Bean
-    public JwtEncoder jwtEncoder(GatewayProperties props) {
-        JWKSource<SecurityContext> jwks = new ImmutableSecret<>(secretKey(props));
-        return new NimbusJwtEncoder(jwks);
-    }
 
     @Bean
     public ReactiveJwtDecoder jwtDecoder(GatewayProperties props) {

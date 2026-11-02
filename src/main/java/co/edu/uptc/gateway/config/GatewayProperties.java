@@ -18,9 +18,7 @@ import org.springframework.validation.annotation.Validated;
 @ConfigurationProperties(prefix = "gateway")
 public record GatewayProperties(
         @Valid @DefaultValue Jwt jwt,
-        @Valid @DefaultValue Admin admin,
         @Valid @DefaultValue Services services,
-        @DefaultValue("./data/users.json") String usersFile,
         @DefaultValue("*") List<String> corsOrigins,
         @Min(1) @DefaultValue("10") int rateLimitPerMinute,
         // Timeout de las llamadas que el propio Gateway hace a los módulos para /detalle (distinto
@@ -31,21 +29,14 @@ public record GatewayProperties(
             @NotBlank(message = "es obligatorio (variable JWT_SECRET)")
             @Size(min = 32, message = "debe tener al menos 32 caracteres")
             String secret,
-            @DefaultValue("1h") Duration expiresIn,
             @DefaultValue("api-gateway-uptc") String issuer,
             @DefaultValue("sistema-academico") String audience) {
-    }
-
-    public record Admin(
-            @DefaultValue("admin") @Size(min = 3) String username,
-            @NotBlank(message = "es obligatorio (variable ADMIN_PASSWORD)")
-            @Size(min = 8, message = "debe tener al menos 8 caracteres")
-            String password) {
     }
 
     public record Services(
             @DefaultValue("http://localhost:3001") String estudiantes,
             @DefaultValue("http://localhost:8081") String materias,
-            @DefaultValue("http://localhost:8082") String inscripciones) {
+            @DefaultValue("http://localhost:8082") String inscripciones,
+            @DefaultValue("http://localhost:8083") String auth) {
     }
 }

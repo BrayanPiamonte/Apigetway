@@ -1,6 +1,10 @@
 # API Gateway — Laboratorio 3 (Sistemas Distribuidos, UPTC)
 
-Único punto de entrada hacia los módulos. **Aquí se aplica toda la seguridad (JWT)**; los módulos no cambian.
+Único punto de entrada hacia los módulos. **Aquí se valida toda la seguridad (JWT)**; los módulos no cambian.
+
+> **Lab 4:** el Gateway ya **no tiene usuarios ni emite tokens**. Eso lo hace el módulo de Autenticación
+> (`auth-service`, repositorio propio, PostgreSQL propia). El Gateway solo verifica la firma, el vencimiento, el emisor
+> y la audiencia del JWT con la clave compartida `JWT_SECRET`, y enruta `/api/auth/**` hacia ese módulo.
 
 Java 17 · Spring Boot 3.3.4 · Spring Cloud Gateway (2023.0.3) · Spring Security (OAuth2 Resource Server, HS256) · springdoc-openapi 2.6.0
 
@@ -11,18 +15,19 @@ Java 17 · Spring Boot 3.3.4 · Spring Cloud Gateway (2023.0.3) · Spring Securi
 | Estudiantes | 3001 | `docker compose up -d` · `npm run migrate` · `npm run dev` |
 | Materias | 8081 | `docker compose up -d` · `mvn spring-boot:run` |
 | Inscripciones | 8082 | `docker compose up -d` · `mvn spring-boot:run` (Java 23, Spring Boot 4) |
+| **Autenticación** | **8083** | `docker compose up -d --build` (BD en el puerto **5435** + API) — ver el README de `auth-service` |
 | **Gateway** | **8080** | ver abajo |
 
 > Las bases de datos publican en el host: Estudiantes **5433** (por defecto), Materias **5432** e Inscripciones **5434**.
 
 ## Ejecutar el Gateway
 
-Requiere JDK 17+ y Maven 3.9+. Los secretos **no tienen valor por defecto**: si faltan, la app no arranca y dice cuál.
+Requiere JDK 17+ y Maven 3.9+. El secreto **no tiene valor por defecto**: si falta, la app no arranca y dice cuál. Arranca primero el módulo de Autenticación.
 
 **Opción A — perfil local (recomendada):**
 ```bash
 cp src/main/resources/application-local.yml.example src/main/resources/application-local.yml
-# edita gateway.jwt.secret (>= 32 caracteres) y gateway.admin.password
+# edita gateway.jwt.secret (>= 32 caracteres, IGUAL al JWT_SECRET de auth-service)
 mvn spring-boot:run -Dspring-boot.run.profiles=local
 ```
 > En **PowerShell** el `-D...` con punto se rompe si no va entre comillas. Usa:
@@ -32,17 +37,18 @@ mvn spring-boot:run -Dspring-boot.run.profiles=local
 **Opción B — variables de entorno:**
 ```powershell
 # PowerShell
-$env:JWT_SECRET="un-secreto-largo-de-al-menos-32-caracteres"; $env:ADMIN_PASSWORD="tu-clave-admin"; mvn spring-boot:run
+$env:JWT_SECRET="un-secreto-largo-de-al-menos-32-caracteres"; mvn spring-boot:run
 ```
 ```bash
 # bash
-JWT_SECRET="..." ADMIN_PASSWORD="..." mvn spring-boot:run
+JWT_SECRET="..." mvn spring-boot:run
 ```
 
-Swagger: <http://localhost:8080/swagger-ui.html> · Pruebas: `mvn test`
+Swagger: <http://localhost:8080/swagger-ui.html> · Pruebas: `mvn test` (los tests fabrican sus propios tokens con `TestTokens`; no necesitan auth-service)
 
-Variables opcionales: `JWT_EXPIRES_IN` (1h), `ADMIN_USERNAME` (admin), `PROXY_TIMEOUT` (10s), `RATE_LIMIT_MAX` (10/min),
-`CORS_ORIGIN` (*), `ESTUDIANTES_URL`, `MATERIAS_URL`, `INSCRIPCIONES_URL`, `USERS_FILE` (./data/users.json),
+Variables opcionales: `JWT_ISSUER` / `JWT_AUDIENCE` (deben coincidir con las de auth-service), `PROXY_TIMEOUT` (10s),
+`RATE_LIMIT_MAX` (10/min), `CORS_ORIGIN` (*), `ESTUDIANTES_URL`, `MATERIAS_URL`, `INSCRIPCIONES_URL`,
+`AUTH_URL` (http://localhost:8083),
 `COMPOSITION_TIMEOUT` (5s, timeout de las llamadas de `/detalle` a los tres módulos).
 
 ## Enrutamiento
@@ -52,6 +58,7 @@ Variables opcionales: `JWT_EXPIRES_IN` (1h), `ADMIN_USERNAME` (admin), `PROXY_TI
 | `/api/estudiantes/**`, `/api/programas/**`, `/api/documentos/**` | Estudiantes |
 | `/api/materias/**` (incluye `/docentes` y `/cursos`) | Materias |
 | `/api/inscripciones/**` | Inscripciones |
+| `/api/auth/**` | Autenticación |
 
 Si un módulo no responde: `503` (caído) o `504` (timeout); el Gateway sigue atendiendo a los demás.
 
@@ -90,19 +97,20 @@ dos veces.
 
 | Endpoint | Acceso |
 |---|---|
-| `POST /auth/login` · `POST /auth/register` | Público (máx. `RATE_LIMIT_MAX` intentos/min por IP) |
-| `GET /auth/me` | Token |
+| `POST /api/auth/login` | Público (máx. `RATE_LIMIT_MAX` intentos/min por IP). Lo atiende auth-service |
 | `/api/**` | Token. `ADMIN`: todos los métodos · `USER`: solo `GET` |
+| `POST /api/auth/register` | Solo `ADMIN` (cae en la regla anterior) |
+| `GET /api/auth/me` | Token |
 | `/health`, `/swagger-ui.html`, `/v3/api-docs`, `/docs/*.json` | Público |
 
-- `register` siempre crea rol `USER`. El `ADMIN` se crea al arrancar con `ADMIN_USERNAME`/`ADMIN_PASSWORD` (si ya existe en `data/users.json`, no se sobrescribe).
-- Token: HS256 con algoritmo, `iss` y `aud` fijos; el rol viaja en el claim `role`.
+- Usuarios y contraseñas (BCrypt) viven en la base de datos de **auth-service**; el Gateway no guarda ninguno.
+- Token: HS256 con algoritmo, `iss` y `aud` fijos; el rol viaja en el claim `role`. Lo firma auth-service y lo valida el Gateway.
 - Antes de reenviar, el Gateway quita `Authorization`, descarta cualquier `X-User-*` del cliente y agrega `X-User-Name` / `X-User-Role`.
-- Usuarios: `data/users.json` (contraseñas con BCrypt), ignorado por git.
+  **Excepción:** hacia `/api/auth/**` conserva `Authorization`, porque auth-service valida el JWT por su cuenta (no confía en cabeceras).
 - Errores: `{ "error": { "code", "message", "details": [] } }`.
 
 ```bash
-TOKEN=$(curl -s -X POST localhost:8080/auth/login -H 'Content-Type: application/json' \
+TOKEN=$(curl -s -X POST localhost:8080/api/auth/login -H 'Content-Type: application/json' \
   -d '{"username":"admin","password":"TU_CLAVE"}' | sed -E 's/.*"accessToken":"([^"]+)".*/\1/')
 
 curl -H "Authorization: Bearer $TOKEN" "localhost:8080/api/materias?pageNumber=1&pageSize=5"
@@ -120,10 +128,9 @@ Pulsa **Authorize** una sola vez con el token del login (sin la palabra Bearer).
 ```
 src/main/java/co/edu/uptc/gateway/
   config/      GatewayProperties (validada) · OpenApiConfig
-  security/    SecurityConfig (reglas por ruta/rol) · JwtConfig (firma y verificación)
-  auth/        AuthController (/auth/**) · UserStore · TokenService · DTOs
+  security/    SecurityConfig (reglas por ruta/rol) · JwtConfig (verificación) · Role · JwtClaims
   routing/     RoutesConfig (prefijo -> módulo) · IdentityHeadersFilter
-  ratelimit/   AuthRateLimitFilter
+  ratelimit/   AuthRateLimitFilter (freno en POST /api/auth/login)
   docs/        OpenApiSpecAdapter (contratos de módulos vía Gateway)
   composition/ CompositionController · EstudianteDetalleService (endpoint /detalle, sección 6.1)
   error/       GatewayErrorHandler (503/504/404 controlados) · ApiExceptionHandler

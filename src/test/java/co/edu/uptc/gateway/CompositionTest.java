@@ -7,7 +7,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
@@ -15,7 +14,6 @@ import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
@@ -28,10 +26,7 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
-                "gateway.jwt.secret=0123456789-0123456789-0123456789-0123",
-                "gateway.admin.username=admin",
-                "gateway.admin.password=admin-password-1",
-                "gateway.users-file=target/test-users-composition.json",
+                "gateway.jwt.secret=" + TestTokens.SECRET,
                 "gateway.rate-limit-per-minute=1000",
                 "gateway.composition-timeout=2s"
         })
@@ -135,12 +130,7 @@ class CompositionTest {
 
     private String token() {
         if (token == null) {
-            token = client.post().uri("/auth/login")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .bodyValue(Map.of("username", "admin", "password", "admin-password-1"))
-                    .exchange().expectStatus().isOk()
-                    .expectBody(co.edu.uptc.gateway.auth.TokenResponse.class)
-                    .returnResult().getResponseBody().accessToken();
+            token = TestTokens.mint("admin", "ADMIN");
         }
         return token;
     }
