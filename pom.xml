@@ -52,6 +52,12 @@
             <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
         </dependency>
 
+        <!-- Caché compartido (Redis / ElastiCache) para el catálogo de Materias -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis-reactive</artifactId>
+        </dependency>
+
         <!-- Bean Validation (DTOs y propiedades) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

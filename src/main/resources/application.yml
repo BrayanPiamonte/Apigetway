@@ -9,6 +9,15 @@ spring:
       httpclient:
         connect-timeout: 2000            # ms para conectar con un módulo
         response-timeout: ${PROXY_TIMEOUT:10s}   # tiempo máximo de respuesta del módulo (504 si se excede)
+  data:
+    redis:                               # local: docker run -p 6379:6379 redis · nube: ElastiCache
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      ssl:
+        enabled: ${REDIS_SSL:false}      # true en ElastiCache con cifrado en tránsito
+      timeout: ${REDIS_TIMEOUT:300ms}    # si Redis no responde a tiempo, se sigue sin caché
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:500ms}
 
 # ---------------------------------------------------------------------------
 # Configuración propia del Gateway. Los secretos NO tienen valor por defecto:
@@ -22,6 +31,9 @@ gateway:
   cors-origins: ${CORS_ORIGIN:*}
   rate-limit-per-minute: ${RATE_LIMIT_MAX:10}
   composition-timeout: ${COMPOSITION_TIMEOUT:5s}   # llamadas del propio Gateway a los módulos en /detalle
+  cache:
+    enabled: ${CACHE_ENABLED:true}
+    ttl: ${CACHE_TTL:2m}                 # TTL del catálogo de Materias en Redis (cache-aside)
   services:
     estudiantes: ${ESTUDIANTES_URL:http://localhost:3001}
     materias: ${MATERIAS_URL:http://localhost:8081}

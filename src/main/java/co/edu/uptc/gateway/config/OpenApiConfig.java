@@ -23,7 +23,7 @@ public class OpenApiConfig {
             | `/api/auth/**` | Autenticación (módulo propio, con su base de datos) |
 
             Método, query params y body se reenvían sin alterarse. Si un módulo no responde, el Gateway \
-            devuelve `503` (caído) o `504` (tardó demasiado) sin dejar de atender a los demás.
+            devuelve `502` (caído) o `504` (tardó demasiado) sin dejar de atender a los demás.
 
             ### Seguridad (JSON Web Token)
             1. `POST /api/auth/login` (lo atiende el módulo de Autenticación) devuelve un `accessToken`.

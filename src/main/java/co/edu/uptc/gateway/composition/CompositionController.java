@@ -55,9 +55,7 @@ public class CompositionController {
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "404", description = "No existe un estudiante con ese id",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
-    @ApiResponse(responseCode = "502", description = "Un módulo respondió un error al construir el detalle",
-            content = @Content(schema = @Schema(implementation = ApiError.class)))
-    @ApiResponse(responseCode = "503", description = "Un módulo no está disponible",
+    @ApiResponse(responseCode = "502", description = "Un módulo está caído o respondió un error al construir el detalle",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "504", description = "Un módulo tardó demasiado en responder",
             content = @Content(schema = @Schema(implementation = ApiError.class)))

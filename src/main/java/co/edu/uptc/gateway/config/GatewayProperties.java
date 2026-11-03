@@ -23,7 +23,13 @@ public record GatewayProperties(
         @Min(1) @DefaultValue("10") int rateLimitPerMinute,
         // Timeout de las llamadas que el propio Gateway hace a los módulos para /detalle (distinto
         // del timeout del proxy simple, que se configura en spring.cloud.gateway.httpclient).
-        @DefaultValue("5s") Duration compositionTimeout) {
+        @DefaultValue("5s") Duration compositionTimeout,
+        @Valid @DefaultValue Cache cache) {
+
+    public record Cache(
+            @DefaultValue("true") boolean enabled,
+            @DefaultValue("2m") Duration ttl) {
+    }
 
     public record Jwt(
             @NotBlank(message = "es obligatorio (variable JWT_SECRET)")

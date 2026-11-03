@@ -49,7 +49,25 @@ Swagger: <http://localhost:8080/swagger-ui.html> · Pruebas: `mvn test` (los tes
 Variables opcionales: `JWT_ISSUER` / `JWT_AUDIENCE` (deben coincidir con las de auth-service), `PROXY_TIMEOUT` (10s),
 `RATE_LIMIT_MAX` (10/min), `CORS_ORIGIN` (*), `ESTUDIANTES_URL`, `MATERIAS_URL`, `INSCRIPCIONES_URL`,
 `AUTH_URL` (http://localhost:8083),
-`COMPOSITION_TIMEOUT` (5s, timeout de las llamadas de `/detalle` a los tres módulos).
+`COMPOSITION_TIMEOUT` (5s, timeout de las llamadas de `/detalle` a los tres módulos),
+`REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` / `REDIS_SSL` (caché), `CACHE_TTL` (2m), `CACHE_ENABLED` (true).
+
+## Caché Redis (Lab 4, requisito 5.3)
+
+Cache-aside en Redis para las lecturas del catálogo de Materias (`GET /api/materias/**`). Local:
+`docker run -d --name gateway-redis -p 6379:6379 redis:7-alpine`; en la nube, ElastiCache (`REDIS_SSL=true`).
+
+- **Clave:** `cache:materias:v<versión>:<path>?<query params ordenados>`, así que paginación, orden y filtros
+  generan entradas distintas. TTL configurable con `CACHE_TTL`.
+- **Cabecera** `X-Cache: HIT` o `MISS` en cada respuesta cacheable.
+- **Invalidación:** cualquier `POST`/`PUT`/`PATCH`/`DELETE` exitoso sobre Materias incrementa la versión y deja
+  inválido todo el catálogo (cambiar una materia también cambia los cursos que muestran su nombre).
+- **No se cachea:** escrituras, `/archivos` (las URLs firmadas vencen) ni nada de Inscripciones (los cupos cambian
+  con cada inscripción y deben leerse siempre frescos).
+- **Si Redis cae**, la petición sigue directo al módulo (más lenta, nunca falla): los comandos fallan al instante
+  (`REJECT_COMMANDS`) en vez de esperar, y se registra un aviso.
+
+Medido en local, la misma consulta pasó de 774 ms (MISS) a 15 ms (HIT).
 
 ## Enrutamiento
 
@@ -60,7 +78,7 @@ Variables opcionales: `JWT_ISSUER` / `JWT_AUDIENCE` (deben coincidir con las de 
 | `/api/inscripciones/**` | Inscripciones |
 | `/api/auth/**` | Autenticación |
 
-Si un módulo no responde: `503` (caído) o `504` (timeout); el Gateway sigue atendiendo a los demás.
+Si un módulo no responde: `502` (caído) o `504` (timeout); el Gateway sigue atendiendo a los demás.
 
 ## Endpoint de composición (BFF) — sección 6.1
 
@@ -78,8 +96,8 @@ simple, que es solo un proxy). Requiere token, igual que el resto de `/api/**`. 
 
 **Decisiones de diseño, por si preguntan en la sustentación:**
 - **Sin respuestas parciales.** Si cualquier módulo falla en cualquier paso, toda la operación falla
-  con un error controlado (`404` si el estudiante no existe, `502` si un módulo respondió un error,
-  `503`/`504` si está caído o lento) — nunca un JSON a medias. Es más fácil de explicar y de depurar
+  con un error controlado (`404` si el estudiante no existe, `502` si un módulo respondió un error o está caído,
+  `504` si tardó demasiado) — nunca un JSON a medias. Es más fácil de explicar y de depurar
   que decidir, campo por campo, qué mostrar cuando falta un dato.
 - **`estado` viaja tal cual lo da Inscripciones** (`"ACTIVA"`, en mayúsculas — el enum real del
   módulo), no como el `"activa"` en minúsculas del ejemplo ilustrativo del enunciado.
@@ -89,7 +107,7 @@ simple, que es solo un proxy). Requiere token, igual que el resto de `/api/**`. 
 - **`estudiante` no se toca.** Va tal cual lo devuelve el módulo Estudiantes, como pide el enunciado.
 
 Documentado con Swagger en el tag **Composición (BFF)** (`/swagger-ui.html`), con el contrato completo
-(200/401/404/502/503/504) y ejemplos. Hay una prueba de integración (`CompositionTest`) que simula
+(200/401/404/502/504) y ejemplos. Hay una prueba de integración (`CompositionTest`) que simula
 los tres módulos y comprueba el ensamblado, el recorrido de páginas y que curso/docente no se pidan
 dos veces.
 
@@ -133,7 +151,7 @@ src/main/java/co/edu/uptc/gateway/
   ratelimit/   AuthRateLimitFilter (freno en POST /api/auth/login)
   docs/        OpenApiSpecAdapter (contratos de módulos vía Gateway)
   composition/ CompositionController · EstudianteDetalleService (endpoint /detalle, sección 6.1)
-  error/       GatewayErrorHandler (503/504/404 controlados) · ApiExceptionHandler
+  error/       GatewayErrorHandler (502/504/404 controlados) · ApiExceptionHandler
 ```
 
 ## Pendiente / límites conocidos

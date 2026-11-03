@@ -14,7 +14,7 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 
 /**
  * Pruebas de seguridad del Gateway. Los módulos (incluido Autenticación) apuntan a un puerto cerrado a propósito:
- * si la petición SUPERA la seguridad, el resultado esperado es 503 (módulo caído, error controlado);
+ * si la petición SUPERA la seguridad, el resultado esperado es 502 (módulo caído, error controlado);
  * si NO la supera, es 401 (sin/mal token) o 403 (rol sin permiso).
  * Los tokens se fabrican en el test con la misma clave: el Gateway solo los valida, no los emite.
  */
@@ -86,13 +86,13 @@ class GatewaySecurityTest {
 
     @Test
     void loginIsPublicAndRoutedToAuthModule() {
-        // Pasa la seguridad (es público) y llega al módulo de Autenticación (caído) -> 503 controlado
+        // Pasa la seguridad (es público) y llega al módulo de Autenticación (caído) -> 502 controlado
         client.post().uri("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(Map.of("username", "admin", "password", "x"))
                 .exchange()
-                .expectStatus().isEqualTo(503)
-                .expectBody().jsonPath("$.error.code").isEqualTo("SERVICE_UNAVAILABLE");
+                .expectStatus().isEqualTo(502)
+                .expectBody().jsonPath("$.error.code").isEqualTo("BAD_GATEWAY");
     }
 
     @Test
@@ -102,7 +102,7 @@ class GatewaySecurityTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(Map.of("username", "admin", "password", "x"))
                 .exchange()
-                .expectStatus().isEqualTo(503); // no 401: en rutas públicas se ignora el Authorization
+                .expectStatus().isEqualTo(502); // no 401: en rutas públicas se ignora el Authorization
     }
 
     @Test
@@ -126,24 +126,24 @@ class GatewaySecurityTest {
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(body)
-                .exchange().expectStatus().isEqualTo(503); // pasó la seguridad; Autenticación está caído
+                .exchange().expectStatus().isEqualTo(502); // pasó la seguridad; Autenticación está caído
     }
 
     @Test
     void meWithValidTokenReachesAuthModule() {
         client.get().uri("/api/auth/me")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken)
-                .exchange().expectStatus().isEqualTo(503);
+                .exchange().expectStatus().isEqualTo(502);
     }
 
     @Test
     void userCanReadButNotWrite() {
-        // GET pasa la seguridad -> llega al módulo (caído) -> 503 controlado
+        // GET pasa la seguridad -> llega al módulo (caído) -> 502 controlado
         client.get().uri("/api/materias?pageNumber=1&pageSize=5")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken)
                 .exchange()
-                .expectStatus().isEqualTo(503)
-                .expectBody().jsonPath("$.error.code").isEqualTo("SERVICE_UNAVAILABLE");
+                .expectStatus().isEqualTo(502)
+                .expectBody().jsonPath("$.error.code").isEqualTo("BAD_GATEWAY");
 
         // POST / DELETE los frena el Gateway con 403 antes de llegar al módulo
         client.post().uri("/api/materias/cursos")
@@ -196,7 +196,7 @@ class GatewaySecurityTest {
         String student12 = TestTokens.mintStudent("laura", 12);
         client.put().uri("/api/estudiantes/12/foto")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + student12)
-                .exchange().expectStatus().isEqualTo(503); // pasó la seguridad; Estudiantes está caído
+                .exchange().expectStatus().isEqualTo(502); // pasó la seguridad; Estudiantes está caído
         client.put().uri("/api/estudiantes/13/foto")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + student12)
                 .exchange().expectStatus().isForbidden();
@@ -209,7 +209,7 @@ class GatewaySecurityTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(Map.of("nombre", "Sistemas Distribuidos"))
                 .exchange()
-                .expectStatus().isEqualTo(503); // pasó la seguridad; el módulo está caído
+                .expectStatus().isEqualTo(502); // pasó la seguridad; el módulo está caído
     }
 
     @Test
@@ -219,13 +219,13 @@ class GatewaySecurityTest {
         client.get().uri("/api/inscripciones/1/notas").exchange().expectStatus().isUnauthorized();
         client.get().uri("/api/inscripciones/1/historial").exchange().expectStatus().isUnauthorized();
 
-        // USER puede consultar: pasa la seguridad y llega al módulo (caído) -> 503 controlado
+        // USER puede consultar: pasa la seguridad y llega al módulo (caído) -> 502 controlado
         client.get().uri("/api/inscripciones?pageNumber=0&pageSize=20&estado=ACTIVA")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken)
-                .exchange().expectStatus().isEqualTo(503);
+                .exchange().expectStatus().isEqualTo(502);
         client.get().uri("/api/inscripciones/1/notas")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken)
-                .exchange().expectStatus().isEqualTo(503);
+                .exchange().expectStatus().isEqualTo(502);
 
         // USER no puede escribir: POST, PUT, PATCH (cambio de estado) ni DELETE -> 403
         client.post().uri("/api/inscripciones")
@@ -242,12 +242,12 @@ class GatewaySecurityTest {
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken)
                 .exchange().expectStatus().isForbidden();
 
-        // ADMIN sí pasa la seguridad (503 porque el módulo está caído)
+        // ADMIN sí pasa la seguridad (502 porque el módulo está caído)
         client.patch().uri("/api/inscripciones/1/estado")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(Map.of("estado", "CANCELADA"))
-                .exchange().expectStatus().isEqualTo(503);
+                .exchange().expectStatus().isEqualTo(502);
     }
 
     @Test
