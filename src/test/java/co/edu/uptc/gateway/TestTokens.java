@@ -32,17 +32,30 @@ final class TestTokens {
         return mint(username, role, SECRET, now, now.plus(Duration.ofHours(1)));
     }
 
+    static String mintStudent(String username, long estudianteId) {
+        Instant now = Instant.now();
+        return mint(username, "USER", SECRET, now, now.plus(Duration.ofHours(1)), estudianteId);
+    }
+
     static String mint(String username, String role, String secret, Instant issuedAt, Instant expiresAt) {
+        return mint(username, role, secret, issuedAt, expiresAt, null);
+    }
+
+    static String mint(String username, String role, String secret, Instant issuedAt, Instant expiresAt,
+                       Long estudianteId) {
         JWKSource<SecurityContext> jwks = new ImmutableSecret<>(
                 new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-        JwtClaimsSet claims = JwtClaimsSet.builder()
+        JwtClaimsSet.Builder builder = JwtClaimsSet.builder()
                 .issuer(ISSUER)
                 .subject(username)
                 .audience(List.of(AUDIENCE))
                 .issuedAt(issuedAt)
                 .expiresAt(expiresAt)
-                .claim("role", role)
-                .build();
+                .claim("role", role);
+        if (estudianteId != null) {
+            builder.claim("estudianteId", estudianteId);
+        }
+        JwtClaimsSet claims = builder.build();
         return new NimbusJwtEncoder(jwks)
                 .encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(), claims))
                 .getTokenValue();

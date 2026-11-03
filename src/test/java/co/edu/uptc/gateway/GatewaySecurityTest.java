@@ -161,6 +161,48 @@ class GatewaySecurityTest {
     }
 
     @Test
+    void studentCanOnlySeeOwnDetalle() {
+        String student12 = TestTokens.mintStudent("laura", 12);
+
+        // El suyo: pasa la seguridad (después puede fallar por otra causa, pero nunca 401/403)
+        client.get().uri("/api/estudiantes/12/detalle")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + student12)
+                .exchange()
+                .expectStatus().value(s -> org.junit.jupiter.api.Assertions.assertTrue(s != 401 && s != 403,
+                        "su propio /detalle no debe ser rechazado, pero fue " + s));
+
+        // El de otro estudiante: 403
+        client.get().uri("/api/estudiantes/13/detalle")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + student12)
+                .exchange()
+                .expectStatus().isForbidden();
+
+        // Un USER sin claim estudianteId tampoco puede ver ningún /detalle
+        client.get().uri("/api/estudiantes/12/detalle")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken)
+                .exchange()
+                .expectStatus().isForbidden();
+
+        // ADMIN puede ver cualquiera
+        client.get().uri("/api/estudiantes/13/detalle")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                .exchange()
+                .expectStatus().value(s -> org.junit.jupiter.api.Assertions.assertTrue(s != 401 && s != 403,
+                        "ADMIN no debe ser rechazado, pero fue " + s));
+    }
+
+    @Test
+    void studentCanOnlyUploadOwnPhoto() {
+        String student12 = TestTokens.mintStudent("laura", 12);
+        client.put().uri("/api/estudiantes/12/foto")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + student12)
+                .exchange().expectStatus().isEqualTo(503); // pasó la seguridad; Estudiantes está caído
+        client.put().uri("/api/estudiantes/13/foto")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + student12)
+                .exchange().expectStatus().isForbidden();
+    }
+
+    @Test
     void adminCanWrite() {
         client.post().uri("/api/materias")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)

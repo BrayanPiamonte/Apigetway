@@ -10,14 +10,18 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
+import org.springframework.security.authorization.AuthorizationDecision;
+import org.springframework.security.authorization.ReactiveAuthorizationManager;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.oauth2.server.resource.authentication.ReactiveJwtAuthenticationConverterAdapter;
 import org.springframework.security.oauth2.server.resource.web.server.authentication.ServerBearerTokenAuthenticationConverter;
 import org.springframework.security.web.server.SecurityWebFilterChain;
+import org.springframework.security.web.server.authorization.AuthorizationContext;
 import org.springframework.security.web.server.ServerAuthenticationEntryPoint;
 import org.springframework.security.web.server.authorization.ServerAccessDeniedHandler;
 import org.springframework.security.web.server.context.NoOpServerSecurityContextRepository;
@@ -32,6 +36,8 @@ import reactor.core.publisher.Mono;
  * Seguridad centralizada en el Gateway. Los módulos no validan tokens: solo se llega a ellos pasando por aquí.
  * <ul>
  *   <li>Públicos: solo el login (que atiende el módulo de Autenticación), health y documentación.</li>
+ *   <li>Un USER solo puede consultar su propio /api/estudiantes/{id}/detalle y subir su propia foto
+ *       (el {id} debe coincidir con el claim estudianteId del token); ADMIN puede con cualquiera.</li>
  *   <li>/api/**: JWT válido. GET/HEAD para ADMIN y USER; cualquier otro método solo ADMIN
  *       (incluye POST /api/auth/register: crear usuarios es cosa de ADMIN).</li>
  * </ul>
@@ -78,6 +84,8 @@ public class SecurityConfig {
                 .authorizeExchange(auth -> auth
                         .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .pathMatchers(PUBLIC_PATHS).permitAll()
+                        .pathMatchers(HttpMethod.GET, "/api/estudiantes/{id}/detalle").access(ownStudentOrAdmin())
+                        .pathMatchers(HttpMethod.PUT, "/api/estudiantes/{id}/foto").access(ownStudentOrAdmin())
                         .pathMatchers(HttpMethod.GET, "/api/**").hasAnyRole(Role.ADMIN.name(), Role.USER.name())
                         .pathMatchers(HttpMethod.HEAD, "/api/**").hasAnyRole(Role.ADMIN.name(), Role.USER.name())
                         .pathMatchers("/api/**").hasRole(Role.ADMIN.name())
@@ -93,6 +101,30 @@ public class SecurityConfig {
                                 .jwtDecoder(jwtDecoder)
                                 .jwtAuthenticationConverter(new ReactiveJwtAuthenticationConverterAdapter(rolesConverter()))))
                 .build();
+    }
+
+    /**
+     * ADMIN pasa siempre. Un USER solo pasa si el {id} de la ruta es el de su claim estudianteId
+     * (sin ese claim, o con otro id, es 403).
+     */
+    private static ReactiveAuthorizationManager<AuthorizationContext> ownStudentOrAdmin() {
+        return (authentication, context) -> authentication.map(auth -> {
+            if (!auth.isAuthenticated()) {
+                return new AuthorizationDecision(false);
+            }
+            boolean admin = auth.getAuthorities().stream()
+                    .anyMatch(a -> ("ROLE_" + Role.ADMIN.name()).equals(a.getAuthority()));
+            if (admin) {
+                return new AuthorizationDecision(true);
+            }
+            if (auth instanceof JwtAuthenticationToken jwtAuth) {
+                Object claim = jwtAuth.getToken().getClaim(JwtClaims.ESTUDIANTE_ID_CLAIM);
+                Object pathId = context.getVariables().get("id");
+                return new AuthorizationDecision(
+                        claim != null && pathId != null && claim.toString().equals(pathId.toString()));
+            }
+            return new AuthorizationDecision(false);
+        }).defaultIfEmpty(new AuthorizationDecision(false));
     }
 
     /** Claim "role": "ADMIN" -> autoridad ROLE_ADMIN. */
