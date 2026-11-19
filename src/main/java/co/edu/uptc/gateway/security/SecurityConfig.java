@@ -87,7 +87,8 @@ public class SecurityConfig {
                         .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .pathMatchers(PUBLIC_PATHS).permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/estudiantes/{id}/detalle").access(ownStudentOrAdmin())
-                        .pathMatchers(HttpMethod.PUT, "/api/estudiantes/{id}/foto").access(ownStudentOrAdmin())
+                        // La foto de perfil solo la puede cargar un ADMIN: el estudiante no edita su propia ficha.
+                        .pathMatchers(HttpMethod.PUT, "/api/estudiantes/{id}/foto").hasRole(Role.ADMIN.name())
                         .pathMatchers(HttpMethod.POST, "/api/inscripciones/mias")
                                 .hasAnyRole(Role.ADMIN.name(), Role.USER.name())
                         .pathMatchers(HttpMethod.GET, "/api/**").hasAnyRole(Role.ADMIN.name(), Role.USER.name())

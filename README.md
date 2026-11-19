@@ -18,7 +18,7 @@ Java 17 · Spring Boot 3.3.4 · Spring Cloud Gateway (2023.0.3) · Spring Securi
 | **Autenticación** | **8083** | `docker compose up -d --build` (BD en el puerto **5435** + API) — ver el README de `auth-service` |
 | **Gateway** | **8080** | ver abajo |
 
-> Las bases de datos publican en el host: Estudiantes **5433** (por defecto), Materias **5432** e Inscripciones **5434**.
+> Las bases de datos publican en el host: Estudiantes **5436**, Materias **5433** e Inscripciones **5434**.
 
 ## Ejecutar el Gateway
 
@@ -93,12 +93,27 @@ Documentado con Swagger en el tag **Composición (BFF)** (`/swagger-ui.html`), c
 los tres módulos y comprueba el ensamblado, el recorrido de páginas y que curso/docente no se pidan
 dos veces.
 
+## Inscripción self-service y validación de programa
+
+- `POST /api/inscripciones/mias` — lo atiende el propio Gateway. El `estudianteId` sale del
+  claim `estudianteId` del JWT (nunca del cuerpo), así que un `USER` solo puede inscribirse a sí
+  mismo. Antes de reenviar la petición al módulo Inscripciones, el Gateway consulta el programa
+  del estudiante y el programa de la materia del curso; si no coinciden responde
+  `422 PROGRAMA_INCOMPATIBLE`.
+- `POST /api/inscripciones` — alta administrativa. Sigue siendo un proxy al módulo, pero un
+  filtro global del Gateway lee el cuerpo, valida la misma compatibilidad de programa y luego
+  reinyecta el cuerpo intacto. El resto de métodos (`GET`, `PUT`, `PATCH`, `DELETE`) sigue
+  enrutándose sin cambios.
+- Con esto un estudiante no puede terminar con materias de varias carreras aunque llame
+  directamente a la API.
+
 ## Seguridad
 
 | Endpoint | Acceso |
 |---|---|
 | `POST /api/auth/login` | Público (máx. `RATE_LIMIT_MAX` intentos/min por IP). Lo atiende auth-service |
-| `/api/**` | Token. `ADMIN`: todos los métodos · `USER`: solo `GET` |
+| `/api/**` | Token. `ADMIN`: todos los métodos · `USER`: solo `GET`/`HEAD` |
+| `POST /api/inscripciones/mias` | `ADMIN` o `USER` (el `USER` solo inscribe al estudiante de su token) |
 | `POST /api/auth/register` | Solo `ADMIN` (cae en la regla anterior) |
 | `GET /api/auth/me` | Token |
 | `/health`, `/swagger-ui.html`, `/v3/api-docs`, `/docs/*.json` | Público |
@@ -133,6 +148,7 @@ src/main/java/co/edu/uptc/gateway/
   ratelimit/   AuthRateLimitFilter (freno en POST /api/auth/login)
   docs/        OpenApiSpecAdapter (contratos de módulos vía Gateway)
   composition/ CompositionController · EstudianteDetalleService (endpoint /detalle, sección 6.1)
+  inscripciones/ InscripcionPropiaController (/mias) · InscripcionProgramaFilter · ProgramaCompatibilityService
   error/       GatewayErrorHandler (503/504/404 controlados) · ApiExceptionHandler
 ```
 

@@ -132,7 +132,8 @@ public class EstudianteDetalleService {
     private static InscripcionDetalle toDetalle(InscripcionRaw insc, CursoRaw curso, Map<Long, DocenteRaw> docentesPorId) {
         DocenteRaw docente = curso == null ? null : docentesPorId.get(curso.docenteId());
         CursoDetalle cursoDetalle = curso == null ? null : new CursoDetalle(
-                curso.id(), curso.materiaNombre(), curso.horario(), curso.periodo(),
+                curso.id(), curso.materiaNombre(), curso.materiaSemestre(), curso.programaCodigo(),
+                curso.horario(), curso.periodo(),
                 docente == null ? null : new DocenteDetalle(docente.id(), docente.nombreCompleto()));
         List<NotaDetalle> notas = insc.notas() == null ? List.of()
                 : insc.notas().stream().map(n -> new NotaDetalle(n.tipo(), n.valor())).toList();

@@ -192,14 +192,19 @@ class GatewaySecurityTest {
     }
 
     @Test
-    void studentCanOnlyUploadOwnPhoto() {
+    void onlyAdminCanUploadPhotos() {
         String student12 = TestTokens.mintStudent("laura", 12);
+        // El estudiante ya no puede cargar su propia foto: solo ADMIN.
         client.put().uri("/api/estudiantes/12/foto")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + student12)
-                .exchange().expectStatus().isEqualTo(503); // pasó la seguridad; Estudiantes está caído
+                .exchange().expectStatus().isForbidden();
         client.put().uri("/api/estudiantes/13/foto")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + student12)
                 .exchange().expectStatus().isForbidden();
+        // ADMIN pasa la seguridad; Estudiantes está caído -> 503.
+        client.put().uri("/api/estudiantes/12/foto")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                .exchange().expectStatus().isEqualTo(503);
     }
 
     @Test
