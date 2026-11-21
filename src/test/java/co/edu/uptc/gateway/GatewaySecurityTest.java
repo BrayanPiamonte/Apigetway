@@ -22,6 +22,7 @@ import org.springframework.test.web.reactive.server.WebTestClient;
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
                 "gateway.jwt.secret=" + TestTokens.SECRET,
+                "gateway.datalake.enabled=false",
                 "gateway.rate-limit-per-minute=1000",
                 "gateway.services.estudiantes=http://localhost:1",
                 "gateway.services.materias=http://localhost:1",

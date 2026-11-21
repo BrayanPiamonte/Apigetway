@@ -12,5 +12,7 @@ public record CursoRaw(
         String docenteNombre,
         String horario,
         String periodo,
-        Integer cupo) {
+        Integer cupo,
+        Integer cuposDisponibles,
+        String estado) {
 }

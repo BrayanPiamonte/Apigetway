@@ -39,7 +39,10 @@ import reactor.core.publisher.Mono;
 public class MateriasCacheFilter implements GlobalFilter, Ordered {
 
     static final String PREFIX = "/api/materias";
+    static final String INSCRIPCIONES_PREFIX = "/api/inscripciones";
     static final String X_CACHE = "X-Cache";
+    /** Copia de X-Cache: CloudFront reemplaza X-Cache por la suya ("Miss from cloudfront") y esta llega intacta. */
+    static final String X_GATEWAY_CACHE = "X-Gateway-Cache";
     static final String VERSION_KEY = "cache:materias:version";
     private static final String SEPARATOR = "\n";
     private static final Logger log = LoggerFactory.getLogger(MateriasCacheFilter.class);
@@ -57,18 +60,27 @@ public class MateriasCacheFilter implements GlobalFilter, Ordered {
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         String path = exchange.getRequest().getPath().value();
+        HttpMethod method = exchange.getRequest().getMethod();
+        // Una inscripción (o su cancelación) cambia cuposDisponibles en Materias por la vía
+        // interna, sin pasar por /api/materias: también debe invalidar el catálogo cacheado.
+        if (enabled && path.startsWith(INSCRIPCIONES_PREFIX) && isWrite(method)) {
+            return chain.filter(exchange).then(Mono.defer(() -> invalidateIfSuccessful(exchange)));
+        }
         if (!enabled || !path.startsWith(PREFIX)) {
             return chain.filter(exchange);
         }
-        HttpMethod method = exchange.getRequest().getMethod();
         if (HttpMethod.GET.equals(method)) {
             return isCacheable(path) ? cachedRead(exchange, chain, path) : chain.filter(exchange);
         }
-        if (HttpMethod.POST.equals(method) || HttpMethod.PUT.equals(method)
-                || HttpMethod.PATCH.equals(method) || HttpMethod.DELETE.equals(method)) {
+        if (isWrite(method)) {
             return chain.filter(exchange).then(Mono.defer(() -> invalidateIfSuccessful(exchange)));
         }
         return chain.filter(exchange);
+    }
+
+    private static boolean isWrite(HttpMethod method) {
+        return HttpMethod.POST.equals(method) || HttpMethod.PUT.equals(method)
+                || HttpMethod.PATCH.equals(method) || HttpMethod.DELETE.equals(method);
     }
 
     static boolean isCacheable(String path) {
@@ -109,6 +121,7 @@ public class MateriasCacheFilter implements GlobalFilter, Ordered {
         ServerHttpResponse response = exchange.getResponse();
         response.setStatusCode(HttpStatus.OK);
         response.getHeaders().set(X_CACHE, "HIT");
+        response.getHeaders().set(X_GATEWAY_CACHE, "HIT");
         if (!contentType.isEmpty()) {
             response.getHeaders().setContentType(MediaType.parseMediaType(contentType));
         }
@@ -120,6 +133,7 @@ public class MateriasCacheFilter implements GlobalFilter, Ordered {
     private Mono<Void> forwardAndStore(ServerWebExchange exchange, GatewayFilterChain chain, String key) {
         ServerHttpResponse original = exchange.getResponse();
         original.getHeaders().set(X_CACHE, "MISS");
+        original.getHeaders().set(X_GATEWAY_CACHE, "MISS");
         if (key == null) {
             return chain.filter(exchange);
         }

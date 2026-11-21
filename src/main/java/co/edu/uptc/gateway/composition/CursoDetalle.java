@@ -7,5 +7,6 @@ public record CursoDetalle(
         @Schema(example = "Sistemas Distribuidos", description = "Nombre de la materia del curso") String nombre,
         @Schema(example = "Lunes-Miércoles 8:00-10:00") String horario,
         @Schema(example = "2026-2") String periodo,
-        DocenteDetalle docente) {
+        @Schema(example = "ACTIVO", description = "ACTIVO o INACTIVO (un curso no se borra, se inactiva)") String estado,
+        @Schema(description = "null si el docente no estuvo disponible") DocenteDetalle docente) {
 }

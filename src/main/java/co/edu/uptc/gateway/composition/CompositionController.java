@@ -45,19 +45,18 @@ public class CompositionController {
                     4. Para cada curso, GET Docente/{docenteId} al módulo Materias.
                     5. El Gateway ensambla todo en la respuesta.
 
-                    Si algún módulo falla (caído, lento, o responde un error) en cualquiera de estos
-                    pasos, toda la operación falla con un error controlado: no se devuelve un JSON
-                    a medias. `curso` y `cursoIds`/`docenteIds` repetidos entre inscripciones se
-                    piden una sola vez.""")
-    @ApiResponse(responseCode = "200", description = "Detalle compuesto",
+                    B4 · no se rompe: el estudiante es obligatorio (404 si no existe, 503 si
+                    Estudiantes no responde). Si Inscripciones falla, `inscripciones` llega como
+                    "NO_DISPONIBLE"; si un curso o docente falla o ya no existe, ese campo llega en
+                    null. En ambos casos `parcial` es true. Nunca responde 500 por un dato faltante.
+                    Los cursos y docentes repetidos entre inscripciones se piden una sola vez.""")
+    @ApiResponse(responseCode = "200", description = "Detalle compuesto (parcial = true si faltó algún dato)",
             content = @Content(schema = @Schema(implementation = EstudianteDetalleResponse.class)))
     @ApiResponse(responseCode = "401", description = "Token ausente, inválido o expirado",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "404", description = "No existe un estudiante con ese id",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
-    @ApiResponse(responseCode = "502", description = "Un módulo está caído o respondió un error al construir el detalle",
-            content = @Content(schema = @Schema(implementation = ApiError.class)))
-    @ApiResponse(responseCode = "504", description = "Un módulo tardó demasiado en responder",
+    @ApiResponse(responseCode = "503", description = "El módulo Estudiantes (obligatorio) no está disponible",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     public Mono<EstudianteDetalleResponse> detalle(
             @Parameter(description = "Id del estudiante", example = "12")

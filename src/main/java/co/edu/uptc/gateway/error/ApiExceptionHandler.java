@@ -1,6 +1,7 @@
 package co.edu.uptc.gateway.error;
 
 import co.edu.uptc.gateway.composition.CompositionUpstreamException;
+import co.edu.uptc.gateway.composition.ModuloNoDisponibleException;
 import co.edu.uptc.gateway.composition.StudentNotFoundException;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +35,12 @@ public class ApiExceptionHandler {
     public ResponseEntity<ApiError> studentNotFound(StudentNotFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ApiError.of("STUDENT_NOT_FOUND", ex.getMessage()));
+    }
+
+    @ExceptionHandler(ModuloNoDisponibleException.class)
+    public ResponseEntity<ApiError> moduloNoDisponible(ModuloNoDisponibleException ex) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ApiError.of("MODULE_UNAVAILABLE", ex.getMessage()));
     }
 
     @ExceptionHandler(CompositionUpstreamException.class)

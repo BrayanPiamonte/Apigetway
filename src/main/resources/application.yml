@@ -34,6 +34,11 @@ gateway:
   cache:
     enabled: ${CACHE_ENABLED:true}
     ttl: ${CACHE_TTL:2m}                 # TTL del catálogo de Materias en Redis (cache-aside)
+  datalake:                              # datalake LOCAL de peticiones en Parquet (anio=/mes=/dia=)
+    enabled: ${DATALAKE_ENABLED:true}    # en AWS: DATALAKE_ENABLED=false
+    dir: ${DATALAKE_DIR:../datalake}     # por defecto C:\dev\lab3\datalake (junto al simulador)
+    flush-interval: ${DATALAKE_FLUSH:30s}
+    batch-size: 1000
   services:
     estudiantes: ${ESTUDIANTES_URL:http://localhost:3001}
     materias: ${MATERIAS_URL:http://localhost:8081}
