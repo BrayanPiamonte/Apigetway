@@ -41,7 +41,8 @@ public class GatewayErrorHandler implements WebExceptionHandler {
         if (anyCause(ex, t -> t instanceof ConnectException
                 || t instanceof UnknownHostException
                 || t instanceof UnresolvedAddressException)) {
-            return JsonErrors.write(exchange, HttpStatus.BAD_GATEWAY, "BAD_GATEWAY",
+            // 503 (no 502): la guía de consistencia pide responder 503 cuando un módulo no responde.
+            return JsonErrors.write(exchange, HttpStatus.SERVICE_UNAVAILABLE, "SERVICE_UNAVAILABLE",
                     "El módulo " + moduleName(exchange, ex) + " no está disponible");
         }
         // 3) Errores HTTP conocidos (404 sin ruta, 405, 400...).

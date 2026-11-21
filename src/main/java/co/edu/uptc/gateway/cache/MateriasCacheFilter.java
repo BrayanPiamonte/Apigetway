@@ -170,6 +170,18 @@ public class MateriasCacheFilter implements GlobalFilter, Ordered {
         if (status == null || !status.is2xxSuccessful()) {
             return Mono.empty();
         }
+        return invalidarCatalogo();
+    }
+
+    /**
+     * Sube la versión del catálogo (las entradas viejas dejan de usarse). Se llama DESPUÉS de que el
+     * módulo respondió 2xx, es decir, después de su commit. Si Redis está caído solo se registra:
+     * el dato viejo se corrige al vencer el TTL. También lo usa /api/inscripciones/mias.
+     */
+    public Mono<Void> invalidarCatalogo() {
+        if (!enabled) {
+            return Mono.empty();
+        }
         return redis.opsForValue().increment(VERSION_KEY)
                 .doOnNext(v -> log.info("Catálogo de Materias invalidado (versión {})", v))
                 .onErrorResume(e -> {

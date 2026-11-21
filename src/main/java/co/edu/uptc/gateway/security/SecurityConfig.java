@@ -36,9 +36,11 @@ import reactor.core.publisher.Mono;
  * Seguridad centralizada en el Gateway. Los módulos no validan tokens: solo se llega a ellos pasando por aquí.
  * <ul>
  *   <li>Públicos: solo el login (que atiende el módulo de Autenticación), health y documentación.</li>
- *   <li>Un USER solo puede consultar su propio /api/estudiantes/{id}/detalle y subir su propia foto
- *       (el {id} debe coincidir con el claim estudianteId del token); ADMIN puede con cualquiera.</li>
- *   <li>/api/**: JWT válido. GET/HEAD para ADMIN y USER; cualquier otro método solo ADMIN
+ *   <li>Un USER solo puede consultar su propio /api/estudiantes/{id}/detalle, subir su propia foto
+ *       (el {id} debe coincidir con el claim estudianteId del token) e inscribirse a sí mismo vía
+ *       POST /api/inscripciones/mias (el estudianteId se toma del token, no del cuerpo); ADMIN puede con cualquiera.</li>
+ *   <li>/api/**: JWT válido. GET/HEAD para ADMIN y USER; POST /api/inscripciones/mias también para
+ *       USER (solo inscribe al estudiante del token); cualquier otro método solo ADMIN
  *       (incluye POST /api/auth/register: crear usuarios es cosa de ADMIN).</li>
  * </ul>
  */
@@ -85,7 +87,10 @@ public class SecurityConfig {
                         .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .pathMatchers(PUBLIC_PATHS).permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/estudiantes/{id}/detalle").access(ownStudentOrAdmin())
-                        .pathMatchers(HttpMethod.PUT, "/api/estudiantes/{id}/foto").access(ownStudentOrAdmin())
+                        // La foto de perfil solo la puede cargar un ADMIN: el estudiante no edita su propia ficha.
+                        .pathMatchers(HttpMethod.PUT, "/api/estudiantes/{id}/foto").hasRole(Role.ADMIN.name())
+                        .pathMatchers(HttpMethod.POST, "/api/inscripciones/mias")
+                                .hasAnyRole(Role.ADMIN.name(), Role.USER.name())
                         .pathMatchers(HttpMethod.GET, "/api/**").hasAnyRole(Role.ADMIN.name(), Role.USER.name())
                         .pathMatchers(HttpMethod.HEAD, "/api/**").hasAnyRole(Role.ADMIN.name(), Role.USER.name())
                         .pathMatchers("/api/**").hasRole(Role.ADMIN.name())
