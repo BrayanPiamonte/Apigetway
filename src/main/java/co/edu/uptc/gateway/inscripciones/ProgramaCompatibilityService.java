@@ -45,8 +45,14 @@ public class ProgramaCompatibilityService {
             CursoRaw cursoRaw = tuple.getT2();
             String programaCurso = cursoRaw.programaCodigo();
 
-            // Datos antiguos sin código de programa: no se bloquea la inscripción.
-            if (esVacio(programaEstudiante) || esVacio(programaCurso)) {
+            // Sin el código del estudiante no se puede garantizar que la materia sea de su
+            // programa: se falla cerrado en vez de permitir materias de otras carreras.
+            if (esVacio(programaEstudiante)) {
+                return Mono.error(new ProgramaIncompatibleException(
+                        "No se pudo determinar el programa del estudiante; no se permite inscribir materias"));
+            }
+            // Cursos antiguos sin código: no hay con qué comparar; se mantiene el comportamiento anterior.
+            if (esVacio(programaCurso)) {
                 return Mono.empty();
             }
             if (!programaEstudiante.equalsIgnoreCase(programaCurso)) {
