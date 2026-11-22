@@ -8,3 +8,6 @@ src/main/resources/application-local.yml
 
 # Datalake local de peticiones (Parquet)
 /datalake/
+
+# Salida de scripts/medir-cache.sh
+medicion-cache.csv

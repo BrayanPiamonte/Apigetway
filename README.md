@@ -59,15 +59,47 @@ Cache-aside en Redis para las lecturas del catálogo de Materias (`GET /api/mate
 
 - **Clave:** `cache:materias:v<versión>:<path>?<query params ordenados>`, así que paginación, orden y filtros
   generan entradas distintas. TTL configurable con `CACHE_TTL`.
-- **Cabecera** `X-Cache: HIT` o `MISS` en cada respuesta cacheable.
+- **Cabeceras** `X-Cache: HIT` o `MISS` en cada respuesta cacheable, y la misma información en
+  `X-Gateway-Cache`. Detrás de CloudFront hay que mirar `X-Gateway-Cache`: CloudFront reemplaza `X-Cache` por la
+  suya (`Miss from cloudfront`), que habla de su propio caché y no del de Redis.
 - **Invalidación:** cualquier `POST`/`PUT`/`PATCH`/`DELETE` exitoso sobre Materias incrementa la versión y deja
-  inválido todo el catálogo (cambiar una materia también cambia los cursos que muestran su nombre).
+  inválido todo el catálogo. Se invalida el catálogo entero y no solo el recurso tocado porque cambiar una materia
+  también cambia los cursos que muestran su nombre, y las páginas y filtros cacheados mezclan muchos recursos: con
+  una sola versión no queda ninguna entrada vieja escondida. Una escritura exitosa en
+  `/api/inscripciones/**` (inscribir o cancelar) también invalida, porque cambia los cupos que muestra Materias. Si la escritura falla
+  (4xx/5xx), no se invalida nada.
 - **No se cachea:** escrituras, `/archivos` (las URLs firmadas vencen) ni nada de Inscripciones (los cupos cambian
-  con cada inscripción y deben leerse siempre frescos).
+  con cada inscripción y deben leerse siempre frescos), ni respuestas distintas de 200.
 - **Si Redis cae**, la petición sigue directo al módulo (más lenta, nunca falla): los comandos fallan al instante
-  (`REJECT_COMMANDS`) en vez de esperar, y se registra un aviso.
+  (`REJECT_COMMANDS`) en vez de esperar, y se registra un aviso. Al volver Redis, el Gateway se reconecta solo.
 
-Medido en local, la misma consulta pasó de 774 ms (MISS) a 15 ms (HIT).
+**Pruebas:** `mvn test -Dtest=MateriasCacheFilterTest` (no necesitan Redis: lo simulan en memoria) cubren MISS → HIT
+sin llamar otra vez al módulo, clave independiente del orden de los parámetros, invalidación por escritura e
+inscripción, escrituras fallidas que no invalidan, respuestas no-200 que no se guardan, `/archivos` fuera del caché y
+Redis caído.
+
+### Medición (≥ 50 peticiones y hit ratio)
+
+```bash
+GATEWAY_URL=https://<gateway> CACHE_USER=admin ./scripts/medir-cache.sh      # pide la contraseña
+N=100 RUTA='/api/materias?pageNumber=1&pageSize=10' ./scripts/medir-cache.sh   # otra consulta y más peticiones
+```
+
+El script inicia sesión, hace `N` peticiones (50 por defecto) **sin caché** (un parámetro distinto en cada una, así
+que la clave cambia y todas son MISS) y `N` **con caché** (la misma consulta), y cuenta los HIT con
+`X-Gateway-Cache`. Imprime la tabla y guarda cada petición en `medicion-cache.csv`. Funciona en Git Bash, Linux y
+macOS (solo usa `curl` y `awk`).
+
+Resultado en AWS (3 de noviembre de 2026, desde Colombia hacia us-east-2, `GET /api/materias/cursos?pageNumber=1&pageSize=20&sortBy=id`):
+
+| Escenario | N  | Promedio | p50    | p95    | Hit ratio     |
+|-----------|----|----------|--------|--------|---------------|
+| Sin caché | 50 | 502 ms   | 450 ms | 798 ms | 0 % (0/50)    |
+| Con caché | 50 | 411 ms   | 391 ms | 593 ms | 98 % (49/50)  |
+
+El HIT ahorra ~90 ms en promedio y recorta la cola (p95). La mayor parte del tiempo restante es el viaje por internet
+hasta Ohio (~300 ms), que el caché no puede quitar: en local, sin esa latencia, la misma consulta pasó de 774 ms (MISS)
+a 15 ms (HIT). El único MISS con caché es la primera petición, que llena la entrada.
 
 ## Enrutamiento
 
